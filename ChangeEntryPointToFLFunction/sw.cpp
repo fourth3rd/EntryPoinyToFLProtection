@@ -6,7 +6,7 @@
 #include<vector>
 
 
-std::vector<std::pair<int,std::pair<int, int > > > vctParseRelocation;
+std::vector<std::pair<int, std::pair<int, int > > > vctParseRelocation;
 typedef struct Section
 {
 	char Name[8];
@@ -106,19 +106,23 @@ int main()
 		pDosH = (PIMAGE_DOS_HEADER)buf;
 		pNtH = (PIMAGE_NT_HEADERS)((LPBYTE)buf + pDosH->e_lfanew);
 
-		int i32BaseAddress = pNtH->OptionalHeader.ImageBase;
+		int i32FileBaseAddress = pNtH->OptionalHeader.ImageBase;
 		int i32EntryPoint = pNtH->OptionalHeader.AddressOfEntryPoint;
 		int i32PointerToRawData = 0;
 		int i32RVA = 0;
 		int i32SizeOfRawData = 0;
 		int i32SizeOfCode = pNtH->OptionalHeader.SizeOfCode;
+		int i32SizeOfImage = pNtH->OptionalHeader.SizeOfImage;
 
 		int i32RelocRVA = 0;
 		int i32RelocPointerToRawData = 0;
 		int i32RelocSizeofRawData = 0;
+		int i32FileTextRva = 0;
 
 		std::vector< Section> vctSection;
 
+		int* pModifiedTextCharacteristics = (int*)0xe0000060;
+		int i32FLStart = pDosH->e_lfanew + sizeof(IMAGE_NT_HEADERS);
 
 		for(int i = 0; i < pNtH->FileHeader.NumberOfSections; i++)
 		{
@@ -132,11 +136,16 @@ int main()
 			strcpy(Temp.Name, (const char*)pSecH->Name);
 			vctSection.push_back(Temp);
 
+			memcpy((void*)&pSecH->Characteristics, (void*)&pModifiedTextCharacteristics, 4);
+			i32FLStart += sizeof(IMAGE_SECTION_HEADER);
+
 			if(!strcmp((const char*)pSecH->Name, ".text"))
 			{
 				i32PointerToRawData = pSecH->PointerToRawData;
 				i32RVA = pSecH->VirtualAddress;
 				i32SizeOfRawData = pSecH->SizeOfRawData;
+				i32FileTextRva = pDosH->e_lfanew + sizeof(IMAGE_NT_HEADERS) + (i * sizeof(IMAGE_SECTION_HEADER));
+				i32FileTextRva += 0xc;
 			}
 			else if(!strcmp((const char*)pSecH->Name, ".reloc"))
 			{
@@ -152,10 +161,15 @@ int main()
 		}
 
 
-		int* pModifiedTextCharacteristics = (int*)0xe0000060;
+
 		int* ModifiedSizeOfImage = (int*)(pNtH->OptionalHeader.SizeOfImage + 0x3000);
 		int* ModifiedEntryPoint = (int*)pNtH->OptionalHeader.SizeOfImage;
-		memcpy((void*)&buf[0x130], (void*)&ModifiedSizeOfImage, 4);
+		WORD* NumberOfSection = (WORD*)(pNtH->FileHeader.NumberOfSections + 0x1);
+
+		memcpy((void*)&pNtH->OptionalHeader.SizeOfImage, (void*)&ModifiedSizeOfImage, 4);
+		memcpy((void*)&pNtH->OptionalHeader.AddressOfEntryPoint, (void*)&ModifiedEntryPoint, 4);
+		memcpy((void*)&pNtH->FileHeader.NumberOfSections, (void*)&NumberOfSection, 2);
+		/*memcpy((void*)&buf[0x130], (void*)&ModifiedSizeOfImage, 4);
 		memcpy((void*)&buf[0x108], (void*)&ModifiedEntryPoint, 4);
 		memcpy((void*)&buf[0x224], (void*)&pModifiedTextCharacteristics, 4);
 		memcpy((void*)&buf[0x24c], (void*)&pModifiedTextCharacteristics, 4);
@@ -165,7 +179,8 @@ int main()
 		memcpy((void*)&buf[0x2ec], (void*)&pModifiedTextCharacteristics, 4);
 		memcpy((void*)&buf[0x314], (void*)&pModifiedTextCharacteristics, 4);
 		memcpy((void*)&buf[0x33c], (void*)&pModifiedTextCharacteristics, 4);
-		buf[0xe6] = '\xa';
+		*/
+		//buf[0xe6] = '\xa';
 		Section FLSection;
 		FLSection.Name[0] = '.';
 		FLSection.Name[1] = 'F';
@@ -173,7 +188,7 @@ int main()
 		FLSection.Name[3] = '\x00';
 
 		FLSection.VirtualSize = 0x3000;
-		FLSection.RVA = 0x20000;
+		FLSection.RVA = i32SizeOfImage;
 		FLSection.SizeOfRawData = 0x3000;
 		FLSection.PoitnerToRawData = stSize;
 		FLSection.POinterToRelocations = 0;
@@ -182,7 +197,7 @@ int main()
 		FLSection.NumberOfLineNumbers = 0;
 		FLSection.Characteristics = 0xe0000020;//
 
-		memcpy((void*)&buf[0x340], (void*)&FLSection, sizeof(FLSection));
+		memcpy((void*)&buf[i32FLStart], (void*)&FLSection, sizeof(FLSection));
 
 		std::vector<std::pair<int, int> > vctRelocationVector;
 
@@ -209,6 +224,10 @@ int main()
 			memcpy((void*)&SizeOfBlock, (void*)(&i32RelocPointerToRawDataToRelocSizeOfBlock), 4);
 			vctRelocationVector.push_back({ RvaOfBlock,SizeOfBlock });
 		}
+
+		char cFileTextRva[2] = { 0, };
+		memcpy((void*)&cFileTextRva, (void*)(&i32FileTextRva), 2);
+
 
 		buf[stSize] = '\xe9';
 		buf[stSize + 1] = '\x1b';
@@ -250,8 +269,8 @@ int main()
 
 		buf[stSize + 0x38] = '\x81';
 		buf[stSize + 0x39] = '\xc2';
-		buf[stSize + 0x3a] = '\x0c';
-		buf[stSize + 0x3b] = '\x02';
+		buf[stSize + 0x3a] = cFileTextRva[0];
+		buf[stSize + 0x3b] = cFileTextRva[1];
 
 		buf[stSize + 0x3c] = '\x00';
 		buf[stSize + 0x3d] = '\x00';
@@ -325,7 +344,7 @@ int main()
 
 			int Start = vctRelocationVector[i].second + 4;
 
-			for(int j = 2; j < Size; j += 2)
+			for(int j = 2; j < Size - 6; j += 2)
 			{
 				WORD Data = 0;
 				int i32RvaOfBlock = 0;
@@ -338,8 +357,8 @@ int main()
 
 				int RelocData = i32RvaOfBlock + Data;
 
-				RelocData -= vctSection[Section].RVA;
-				RelocData += vctSection[Section].PoitnerToRawData;
+	//			RelocData -= vctSection[Section].RVA;
+//				RelocData += vctSection[Section].PoitnerToRawData;
 				RelocData += 2;
 
 				vctParseRelocation.push_back({ Section,{RelocData,DeicdeToRvaOfBlock} });
@@ -359,7 +378,7 @@ int main()
 			//int RVA = vctSection[Section].RVA;
 			//int PointerToRawData = vctSection[Section].PoitnerToRawData;
 
-			int InputData = RelocData + DeicdeToRvaOfBlock -vctSection[Section].PoitnerToRawData;
+			int InputData = RelocData;// +DeicdeToRvaOfBlock;
 			//InputData += BaseAddress;
 
 			char cInputData[4] = { 0, };
@@ -382,7 +401,7 @@ int main()
 			buf[stSize + cnt + 7] = cInputData[3];
 
 			buf[stSize + cnt + 8] = '\x8b';
-			buf[stSize + cnt + 9] = '\xf0';
+			buf[stSize + cnt + 9] = '\xf3';
 			buf[stSize + cnt + 10] = '\xc1';
 			buf[stSize + cnt + 11] = '\xee';
 			buf[stSize + cnt + 12] = '\x10';
@@ -396,12 +415,19 @@ int main()
 
 		}
 
+		int i32FLLast = cnt + FLSection.RVA;
+		int i32FLfunctionToEntryPoint = i32EntryPoint - i32FLLast - 5;
+
+		char cFLfunctionToEntryPoint[4] = { 0, };
+
+		memcpy((void*)&cFLfunctionToEntryPoint, (void*)&i32FLfunctionToEntryPoint, 4);
+
 		buf[stSize + cnt] = '\xe9';
 
-		buf[stSize + cnt + 1] = '\x20';
-		buf[stSize + cnt + 2] = '\xf7';
-		buf[stSize + cnt + 3] = '\xfe';
-		buf[stSize + cnt + 4] = '\xff';
+		buf[stSize + cnt + 1] = cFLfunctionToEntryPoint[0];
+		buf[stSize + cnt + 2] = cFLfunctionToEntryPoint[1];
+		buf[stSize + cnt + 3] = cFLfunctionToEntryPoint[2];
+		buf[stSize + cnt + 4] = cFLfunctionToEntryPoint[3];
 		buf[stSize + cnt + 5] = '\x00';
 		fwrite(buf, sizeof(char), stSize + 0x3000, fp);
 

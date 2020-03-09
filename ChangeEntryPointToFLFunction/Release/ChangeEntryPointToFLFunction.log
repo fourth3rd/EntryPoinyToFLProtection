@@ -1,0 +1,7 @@
+﻿  sw.cpp
+C:\Users\정찬호\source\repos\ChangeEntryPointToFLFunction\ChangeEntryPointToFLFunction\sw.cpp(31,19): warning C4018: '<': signed 또는 unsigned가 일치하지 않습니다.
+C:\Users\정찬호\source\repos\ChangeEntryPointToFLFunction\ChangeEntryPointToFLFunction\sw.cpp(53,4): error C2420: 'strcmp': 첫째 피연산자에 잘못된 기호가 있습니다.
+C:\Users\정찬호\source\repos\ChangeEntryPointToFLFunction\ChangeEntryPointToFLFunction\sw.cpp(53,4): error C2415: 피연산자 형식이 잘못되었습니다.
+C:\Users\정찬호\source\repos\ChangeEntryPointToFLFunction\ChangeEntryPointToFLFunction\sw.cpp(315,20): warning C4018: '<': signed 또는 unsigned가 일치하지 않습니다.
+C:\Users\정찬호\source\repos\ChangeEntryPointToFLFunction\ChangeEntryPointToFLFunction\sw.cpp(321,21): warning C4018: '<': signed 또는 unsigned가 일치하지 않습니다.
+C:\Users\정찬호\source\repos\ChangeEntryPointToFLFunction\ChangeEntryPointToFLFunction\sw.cpp(364,20): warning C4018: '<': signed 또는 unsigned가 일치하지 않습니다.
